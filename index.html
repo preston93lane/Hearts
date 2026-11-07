@@ -60,7 +60,7 @@ h1 span{color:var(--rose)}
 .boo .bf{position:absolute;bottom:-60px;font-size:38px;animation:boorise 3.6s ease-in forwards}
 @keyframes booshake{from{rotate:-4deg}to{rotate:4deg}}
 @keyframes boofade{0%,80%{opacity:1}100%{opacity:0}}
-@keyframes boorise{to{transform:translateY(-115svh) rotate(360deg);opacity:.2}}
+@keyframes boorise{25%{rotate:-12deg}50%{rotate:10deg}75%{rotate:-8deg}to{transform:translateY(-115svh);rotate:6deg;opacity:.2}}
 #table{position:relative;flex:1;min-height:250px}
 .opp{position:absolute;background:#0006;border:2px solid transparent;border-radius:12px;padding:5px 9px;min-width:84px;text-align:center;font-size:13px;line-height:1.3;transition:border-color .2s}
 .opp .nm{font-weight:700;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -705,8 +705,8 @@ function maybeBoo(){
   if(BOOED===key)return;
   BOOED=key;
   const d=document.createElement('div');d.className='boo';
-  const junk=['👎','🍅','👎','😤','🍅','👎','🥚','🙄'];
-  d.innerHTML=`<div class="boo-txt">BOOOOO!<small>${p===MY?'Booooo, Aaron':esc(S.players[p].name)+' shot the moon 👎'}</small></div>`+
+  const junk=['👎','🖕','🍅','🖕🏻','😤','🖕🏽','🥚','🖕🏿','🙄','🖕'];
+  d.innerHTML=`<div class="boo-txt">BOOOOO!<small>${p===MY?'Booooo, Aaron 🖕':esc(S.players[p].name)+' shot the moon 🖕'}</small></div>`+
     [...Array(26)].map((_,i)=>`<span class="bf" style="left:${Math.random()*92}%;animation-delay:${(Math.random()*1.8).toFixed(2)}s">${junk[i%junk.length]}</span>`).join('');
   document.body.appendChild(d);
   if(navigator.vibrate)try{navigator.vibrate([80,60,80,60,200])}catch{}
