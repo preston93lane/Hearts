@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildDeck, deal, leadCard, passOffset, passLabel, legalPlays, trickWinner, scoreHand,
-  aiPass, aiPlay, trickPoints, winners, gameOver,
+  aiPass, aiPlay, trickPoints, winners, gameOver, moonOutcomes, aiMoonChoice,
 } from '../rules.js';
 
 test('deck sizes deal evenly for 3, 4 and 5 players', () => {
@@ -55,7 +55,19 @@ test('scoring, moon, and jack of diamonds', () => {
   assert.equal(moon.moon, 0);
   assert.equal(moon.jdBy, 1);
   assert.deepEqual(scoreHand([[...H(13), 'QS', 'JD'], [], []], { jd: true }).pts, [-10, 26, 26]);
+  // shooter can take 26 off their own score instead
+  assert.deepEqual(scoreHand([[...H(13), 'QS'], ['JD'], [], []], { jd: true, moonChoice: 'sub' }).pts, [-26, -10, 0, 0]);
+  assert.deepEqual(moonOutcomes([10, 20, 30], [[...H(13), 'QS'], [], []]), { add: [10, 46, 56], sub: [-16, 20, 30] });
   assert.deepEqual(scoreHand([['JD'], H(13), ['QS']], { jd: false }).pts, [0, 13, 13]);
+});
+
+test('computer moon choice', () => {
+  // adding 26 would end the game with someone else winning: subtract instead
+  assert.equal(aiMoonChoice({ add: [90, 110, 80], sub: [64, 84, 54] }, 0, 100), 'sub');
+  // adding 26 ends the game and the shooter wins: add
+  assert.equal(aiMoonChoice({ add: [40, 110, 105], sub: [14, 84, 79] }, 0, 100), 'add');
+  // nobody near the end, shooter behind: subtract
+  assert.equal(aiMoonChoice({ add: [60, 56, 46], sub: [34, 30, 20] }, 0, 100), 'sub');
 });
 
 test('winners and game over', () => {

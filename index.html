@@ -45,6 +45,13 @@ h1 span{color:var(--rose)}
 #top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(env(safe-area-inset-top) + 8px) 12px 6px;font-size:14px}
 #top b{color:var(--gold)}
 #tl,#tr{white-space:nowrap;font-size:13.5px}
+#tl{line-height:1.3}
+#tl .hb{color:#fb7185;font-weight:700}
+#tl .hn{opacity:.6;font-size:12.5px}
+.tbtns{display:flex;gap:6px}
+.tbtns button{padding:6px 10px}
+.row .kick{background:transparent;color:#fda4af;padding:4px 8px;font-size:16px}
+.moonbtns button{display:block;width:100%;margin:8px 0}
 #table{position:relative;flex:1;min-height:250px}
 .opp{position:absolute;background:#0006;border:2px solid transparent;border-radius:12px;padding:5px 9px;min-width:84px;text-align:center;font-size:13px;line-height:1.3;transition:border-color .2s}
 .opp .nm{font-weight:700;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -154,10 +161,11 @@ h1 span{color:var(--rose)}
   </div>
   <button id="start" class="btn-w" hidden>Start game</button>
   <div id="lmsg" class="dim"></div>
+  <button id="leaveLobby" class="ghost btn-w">Main menu</button>
 </div>
 
 <div id="app" class="screen" hidden>
-  <div id="top"><div id="tl"></div><div id="tr"></div><button class="ghost small" id="scoresBtn">Scores</button></div>
+  <div id="top"><div id="tl"></div><div id="tr"></div><div class="tbtns"><button class="ghost small" id="scoresBtn">Scores</button><button class="ghost small" id="menuBtn">Menu</button></div></div>
   <div id="table"><div id="opps"></div><div id="trick"></div></div>
   <div id="msg"></div>
   <div class="mebar" id="mebar"></div>
@@ -203,12 +211,14 @@ h1 span{color:var(--rose)}
       <p>No hearts or Q♠ on the first trick (unless you have nothing else). You can't lead hearts until a heart has been played.</p>
       <h4>Points</h4>
       <p>Each ♥ = 1 point. Q♠ = 13 points.</p>
-      <p><b>Shoot the moon:</b> take every heart and the Q♠ and everyone else gets 26.</p>
+      <p><b>Shoot the moon:</b> take every heart and the Q♠, then choose: everyone else gets +26, or take 26 off your own score.</p>
       <p><b>Jack of ♦ (optional):</b> whoever takes it gets −10.</p>
       <h4>3 and 5 players</h4>
       <p>3 players: the 2♣ is removed (17 cards each). 5 players: the 2♣ and 2♦ are removed (10 cards each). The 3♣ leads instead of the 2♣.</p>
       <h4>Playing a card</h4>
       <p>Tap a card to pick it up, tap it again to play it.</p>
+      <h4>Leaving</h4>
+      <p>Tap Menu to go back to the main menu. Your seat is saved. Join again with the room code (same name) to sit back down where you were.</p>
     </div>
     <button class="ghost" data-close>Close</button>
   </div>
@@ -278,6 +288,22 @@ let E=null;                   // host-only engine state (lives on the host's pho
 let SEL=[];                   // cards I've tapped
 let SENT=-1;                  // seq of my last submitted move
 let SCORES_OPEN=false;
+let LISTENS=[];               // Firebase listeners for the current room
+
+// Back to the main menu. Your seat is kept, so you can come back with the room code.
+function leaveRoom(){
+  if(!CODE)return;
+  if(STATUS==='playing'&&MY>=0&&!confirm(IS_HOST
+    ?'Leave the game? It pauses until you come back. Tap "Back to game" or use the room code to return.'
+    :'Leave the game? Your seat is saved. Join again with the room code to sit back down.'))return;
+  LISTENS.forEach(r=>r.off());LISTENS=[];
+  if(E){E=null;HOSTGO=null;ACT_LISTENERS.forEach(f=>f())}
+  CODE='';S=null;STATUS='lobby';MY=-1;IS_HOST=false;SEATS=[];PV={};SEL=[];SCORES_OPEN=false;TRICK_KEY='';
+  $('ov').style.display='none';$('ov').dataset.k='';
+  ['invHostBack','exportBack'].forEach(closeSheet);
+  $('rejoin').hidden=true;
+  screen('menu');offerRejoin();
+}
 
 auth.onAuthStateChanged(u=>{if(u){UID=u.uid;$('create').disabled=$('join').disabled=false;$('conn').textContent='';offerRejoin()}});
 // If this phone was in a game (page reloaded, phone slept), offer a one-tap way back in.
@@ -319,6 +345,13 @@ async function joinRoom(code,name){
   const v=(await db.ref(`rooms/${code}/seats`).once('value')).val()||{};
   store.set('heartsName',name);
   if(Object.values(v).some(x=>x&&x.uid===UID))return enter(code,name);
+  // Someone with this name already has a seat (left and came back on another phone or browser): put them back in it.
+  const key=name.trim().toLowerCase();
+  const old=Object.keys(v).find(i=>v[i]&&String(v[i].name).trim().toLowerCase()===key);
+  if(old!==undefined){
+    const res=await db.ref(`rooms/${code}/seats/${old}`).transaction(cur=>cur&&String(cur.name).trim().toLowerCase()===key?{uid:UID,name:cur.name}:undefined);
+    if(res.committed){toast('Welcome back! You are in your old seat.');return enter(code,v[old].name)}
+  }
   if(st.status==='playing'){enter(code,name);toast('This game already started. You are watching.');return}
   const n=(st.cfg&&st.cfg.n)||4;
   for(let i=0;i<n;i++){
@@ -341,10 +374,12 @@ async function enter(code,name){
   store.set('heartsRoom',code);
   const R_=`rooms/${code}`;
   IS_HOST=(await db.ref(R_+'/host').once('value')).val()===UID;
+  LISTENS=[db.ref(R_+'/seats'),db.ref(R_+'/state'),db.ref(R_+'/private/'+UID+'/d')];
   db.ref(R_+'/seats').on('value',s=>{
     const v=s.val()||{};
     SEATS=[0,1,2,3,4].map(i=>v[i]||null);
     MY=SEATS.findIndex(x=>x&&x.uid===UID);
+    if(E)syncSeats(E);
     lobbyUI();render();
   });
   db.ref(R_+'/state').on('value',s=>{
@@ -369,7 +404,7 @@ function lobbyUI(){
   $('seats').innerHTML=[...Array(n)].map((_,i)=>{
     const s=SEATS[i];
     return `<div class="row"><span>Seat ${i+1}</span>${
-      s?`<span>${esc(s.name)}${s.uid===UID?' (you)':''}${i===0?' ★':''}</span>`:
+      s?`<span>${esc(s.name)}${s.uid===UID?' (you)':''}${i===0?' ★':''}${IS_HOST&&s.uid!==UID?` <button class="kick" data-kick="${i}" title="Remove">✕</button>`:''}</span>`:
       MY===-1?`<button data-sit="${i}">Sit here</button>`:'<span class="dim">Computer</span>'}</div>`}).join('')+
     SEATS.slice(n).filter(Boolean).map(s=>`<div class="row"><span class="dim">Extra</span><span>${esc(s.name)}</span></div>`).join('');
   const lastTaken=SEATS.reduce((m,s,i)=>s?i:m,-1);
@@ -393,10 +428,14 @@ $('optN').onclick=e=>{const b=e.target.closest('button');if(b&&!b.disabled)setCf
 $('optT').onclick=e=>{const b=e.target.closest('button');if(b&&!b.disabled)setCfg({target:+b.dataset.v})};
 $('optJ').onclick=e=>{const b=e.target.closest('button');if(b&&!b.disabled)setCfg({jd:b.dataset.v==='1'})};
 $('seats').onclick=e=>{
+  const k=e.target.closest('[data-kick]');
+  if(k){if(confirm('Remove this player from the room?'))db.ref(`rooms/${CODE}/seats/${+k.dataset.kick}`).remove();return}
   const b=e.target.closest('[data-sit]');if(!b)return;
   db.ref(`rooms/${CODE}/seats/${+b.dataset.sit}`).transaction(cur=>cur?undefined:{uid:UID,name:MYNAME});
 };
 $('create').onclick=createGame;
+$('leaveLobby').onclick=leaveRoom;
+$('menuBtn').onclick=leaveRoom;
 $('join').onclick=joinGame;
 $('start').onclick=()=>{
   if(E)return;
@@ -433,7 +472,8 @@ async function pub(e){
     counts:e.hands.map(h=>h.length),handPts:e.taken.map(R.trickPoints),
     jdBy:e.cfg.jd?e.taken.findIndex(t=>t.includes('JD')):-1,
     trick:e.trick,turn:(ctx&&(e.trickWinner??-1)<0)?e.turn:-1,trickNo:e.trickNo,heartsBroken:e.heartsBroken,
-    trickWinner:e.trickWinner??-1,result:e.result||null,winners:e.winners||null,
+    trickWinner:e.trickWinner??-1,result:e.result||null,
+    moonBy:e.phase==='moon'?e.moonBy:-1,moonOpts:e.phase==='moon'?e.moonOpts:null,winners:e.winners||null,
     gameId:e.gameId,date:e.date||null,seq:e.seq
   };
   const upd={state:{status:'playing',seq:e.seq,data:JSON.stringify(data)}};
@@ -461,8 +501,10 @@ function waitActs(uids,ok){
       };
       r.on('value',h);return [r,h];
     });
-    const stop=()=>{hs.forEach(([r,h])=>r.off('value',h));ACT_LISTENERS.delete(stop)};
-    ACT_LISTENERS.add(stop);
+    const stop=()=>{hs.forEach(([r,h])=>r.off('value',h));ACT_LISTENERS.delete(cancel)};
+    // Called when the game ends or a player comes back on a different phone: the step starts over.
+    const cancel=()=>{if(done)return;done=true;stop();res({restart:true})};
+    ACT_LISTENERS.add(cancel);
   });
 }
 
@@ -472,6 +514,7 @@ async function engine(e){
       if(e.phase==='deal')dealHand(e);
       else if(e.phase==='pass')await passing(e);
       else if(e.phase==='play')await playStep(e);
+      else if(e.phase==='moon')await moonStep(e);
       else if(e.phase==='handover'){
         await pub(e);
         await new Promise(r=>HOSTGO=r);HOSTGO=null;
@@ -484,6 +527,14 @@ async function engine(e){
 
 // Sorts by time and after the imported history games (H001…), e.g. H202611071830-LWKF
 function gameIdNow(){const d=new Date(),p=x=>String(x).padStart(2,'0');return `H${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}-${CODE}`}
+// A player rejoined from another phone: point their seat at the new phone.
+function syncSeats(e){
+  let changed=false;
+  e.players.forEach((p,i)=>{const s=SEATS[i];if(p.human&&s&&s.uid!==p.uid){p.uid=s.uid;p.name=s.name;changed=true}});
+  if(!changed)return;
+  ACT_LISTENERS.forEach(f=>f());
+  if(e.phase==='handover'||e.phase==='over')pub(e);
+}
 function dealHand(e){
   e.hands=R.deal(e.n);e.taken=e.hands.map(()=>[]);e.trick=[];e.trickNo=0;e.heartsBroken=false;
   e.result=null;e.trickWinner=-1;e.passes={};e.recv=null;
@@ -506,12 +557,12 @@ async function passing(e){
   }
   await pub(e);
   const idx=uid=>e.players.findIndex(p=>p.human&&p.uid===uid);
-  const {uid,a}=await waitActs(need.map(i=>e.players[i].uid),(uid,a)=>{
+  const r=await waitActs(need.map(i=>e.players[i].uid),(uid,a)=>{
     const i=idx(uid),cs=a.cards;
-    return a.k==='pass'&&a.g===e.gameId&&a.hand===e.handNo&&Array.isArray(cs)&&cs.length===3&&new Set(cs).size===3&&cs.every(c=>e.hands[i].includes(c));
+    return i>=0&&a.k==='pass'&&a.g===e.gameId&&a.hand===e.handNo&&Array.isArray(cs)&&cs.length===3&&new Set(cs).size===3&&cs.every(c=>e.hands[i].includes(c));
   });
-  if(e!==E)return;
-  e.passes[idx(uid)]=a.cards;
+  if(e!==E||r.restart)return;
+  e.passes[idx(r.uid)]=r.a.cards;
 }
 
 async function playStep(e){
@@ -528,7 +579,11 @@ async function playStep(e){
   await pub(e);
   let c;
   if(!pl.human){await sleep(T.think);c=R.aiPlay(e.hands[p],ctx,e.cfg)}
-  else c=(await waitActs([pl.uid],(u,a)=>a.k==='play'&&a.g===e.gameId&&a.seq===e.seq&&legal.includes(a.c))).a.c;
+  else{
+    const r=await waitActs([pl.uid],(u,a)=>a.k==='play'&&a.g===e.gameId&&a.seq===e.seq&&legal.includes(a.c));
+    if(r.restart)return;
+    c=r.a.c;
+  }
   if(e!==E)return;
   e.hands[p]=e.hands[p].filter(x=>x!==c);
   e.trick.push({p,c});
@@ -541,11 +596,33 @@ async function playStep(e){
 }
 
 function endHand(e){
-  const r=R.scoreHand(e.taken,e.cfg);
+  const raw=R.scoreHand(e.taken,e.cfg);
+  if(raw.moon>=0&&!e.moonChoice){
+    // Shooter picks: everyone else +26, or 26 off their own score.
+    e.phase='moon';e.moonBy=raw.moon;e.moonOpts=R.moonOutcomes(e.totals,e.taken,e.cfg);
+    return;
+  }
+  const r=R.scoreHand(e.taken,{...e.cfg,moonChoice:e.moonChoice||'add'});
+  r.moonChoice=r.moon>=0?(e.moonChoice||'add'):null;
+  e.moonChoice=null;e.moonBy=-1;e.moonOpts=null;
   e.totals=e.totals.map((t,i)=>t+r.pts[i]);
   e.log.push(r.pts);e.result=r;
   if(R.gameOver(e.totals,e.cfg.target)){e.phase='over';e.winners=R.winners(e.totals);e.date=localDate()}
   else e.phase='handover';
+}
+
+async function moonStep(e){
+  const p=e.moonBy,pl=e.players[p];
+  await pub(e);
+  if(!pl.human){
+    await sleep(1800);if(e!==E)return;
+    e.moonChoice=R.aiMoonChoice(e.moonOpts,p,e.cfg.target);
+  }else{
+    const r=await waitActs([pl.uid],(u,a)=>a.k==='moon'&&a.g===e.gameId&&a.seq===e.seq&&(a.choice==='add'||a.choice==='sub'));
+    if(e!==E||r.restart)return;
+    e.moonChoice=r.a.choice;
+  }
+  endHand(e);
 }
 
 function backToLobby(){
@@ -599,6 +676,9 @@ $('scoresBtn').onclick=()=>{SCORES_OPEN=true;render()};
 $('ov').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.id==='nx'&&HOSTGO)HOSTGO();
+  if((b.id==='moonAdd'||b.id==='moonSub')&&S.phase==='moon'&&S.moonBy===MY&&SENT!==S.seq){
+    send({k:'moon',choice:b.id==='moonAdd'?'add':'sub'});render();
+  }
   if(b.id==='closeScores'){SCORES_OPEN=false;render()}
   if(b.id==='lobbyGo'||b.id==='quitGo'){if(b.id==='quitGo'&&!confirm('End this game for everyone?'))return;backToLobby()}
   if(b.id==='exportGo')openExport(gameRecord(S));
@@ -616,7 +696,7 @@ function render(){
   if(S.phase==='pass'&&iPassed())SEL=[];
   if(PV.hand)SEL=SEL.filter(c=>PV.hand.includes(c));
 
-  $('tl').innerHTML=`Hand <b>${S.handNo}</b> · ${R.passLabel(n,S.passOff).replace('Pass 2 to the','2')}${S.heartsBroken?' <span style="color:#fb7185" title="Hearts broken">♥</span>':''}`;
+  $('tl').innerHTML=`Hand <b>${S.handNo}</b> · ${R.passLabel(n,S.passOff).replace('Pass 2 to the','2')}<br>${S.heartsBroken?'<span class="hb">♥ Hearts broken</span>':'<span class="hn">Hearts not broken</span>'}`;
   $('tr').innerHTML=`To <b>${S.cfg.target}</b>${S.cfg.jd?' · J♦−10':''}`;
 
   // opponents
@@ -730,10 +810,24 @@ function renderOverlay(){
   const ov=$('ov');let html='';
   const r=S.result;
   const notes=r?[
-    r.moon>=0?`🌙 <b>${esc(S.players[r.moon].name)}</b> shot the moon! Everyone else takes 26.`:'',
+    r.moon>=0?(r.moonChoice==='sub'
+      ?`🌙 <b>${esc(S.players[r.moon].name)}</b> shot the moon and took 26 off their score!`
+      :`🌙 <b>${esc(S.players[r.moon].name)}</b> shot the moon! Everyone else takes 26.`):'',
     r.jdBy>=0?`♦ <b>${esc(S.players[r.jdBy].name)}</b> took the Jack of Diamonds (−10).`:''
   ].filter(Boolean).map(x=>`<p>${x}</p>`).join(''):'';
-  if(S.phase==='handover'){
+  if(S.phase==='moon'){
+    const p=S.moonBy,o=S.moonOpts,who=esc(S.players[p].name);
+    const table=`<table><tr><th></th><th>Now</th><th>Others +26</th><th>Me −26</th></tr>${S.players.map((pl,i)=>
+      `<tr class="${i===p?'w':''}"><td class="n">${esc(pl.name)}</td><td>${S.totals[i]}</td><td>${o.add[i]}</td><td>${o.sub[i]}</td></tr>`).join('')}</table>`;
+    if(p===MY){
+      const sent=SENT===S.seq;
+      html=`<div class="big">🌙</div><h2>You shot the moon!</h2><p>Pick one:</p>
+        <div class="moonbtns"><button id="moonAdd" ${sent?'disabled':''}>Everyone else +26</button>
+        <button id="moonSub" ${sent?'disabled':''}>Take 26 off my score</button></div>${table}`;
+    }else{
+      html=`<div class="big">🌙</div><h2>${who} shot the moon!</h2><p class="note">Waiting for ${who} to choose: everyone else +26, or 26 off their own score.</p>${table}`;
+    }
+  }else if(S.phase==='handover'){
     const low=Math.min(...S.totals);
     html=`<h2>Hand ${S.handNo} done</h2>${notes}${standings(S.totals.map((t,i)=>t===low?i:-1))}
       <p class="note">First to ${S.cfg.target} ends the game.</p>

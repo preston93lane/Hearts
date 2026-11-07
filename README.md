@@ -14,13 +14,15 @@ It works the same way as the Golf game: one web page, with Firebase keeping ever
    - **Jack of ♦ = −10:** on or off
 4. Tap **Start game**. Any empty seats are played by the computer.
 
-Tap a card to pick it up, then tap it again to play it. If a phone reloads or goes to sleep, open the page again and tap **Back to game**.
+Tap a card to pick it up, then tap it again to play it.
+
+Tap **Menu** (in a game) or **Main menu** (in the lobby) to go back to the main menu. Your seat is kept: open the page again and tap **Back to game**, or join with the room code using the same name, and you sit back down in your old spot, even from a different phone. While a player is away the game waits for their turn. If the game master leaves, the game pauses until they come back. In the lobby, the game master can tap ✕ to remove someone.
 
 ### Rules used
 
 - Pass 3 cards each hand. 4 players: left, right, across, no pass. 3 players: left, right, no pass. 5 players: left, right, 2 left, 2 right, no pass.
 - The lowest club leads the first trick (2♣, or 3♣ with 3 or 5 players). You must follow suit. No hearts or Q♠ on the first trick unless you have nothing else. Hearts can't be led until one has been played.
-- Each heart is 1 point, Q♠ is 13. Take all of them (shoot the moon) and everyone else gets 26.
+- Each heart is 1 point, Q♠ is 13. Take all of them (shoot the moon) and you choose: everyone else gets +26, or you take 26 off your own score. The computer picks for itself.
 - Jack of Diamonds option: whoever takes the J♦ gets −10.
 - The game ends when someone reaches the target. Lowest score wins, and a tie means everyone tied wins.
 - **3 players:** 2♣ removed, 17 cards each. **5 players:** 2♣ and 2♦ removed, 10 cards each.

@@ -84,17 +84,42 @@ export function trickWinner(trick) {
 }
 
 // taken: array (per player) of the cards they won this hand.
+// moonChoice: what the moon shooter picked, 'add' (everyone else +26) or 'sub' (shooter −26).
 // Returns points per player for the hand, plus who shot the moon / took J♦.
-export function scoreHand(taken, { jd = false } = {}) {
+export function scoreHand(taken, { jd = false, moonChoice = 'add' } = {}) {
   let pts = taken.map(trickPoints);
   const moon = pts.findIndex((x) => x === 26);
-  if (moon >= 0) pts = pts.map((_, i) => (i === moon ? 0 : 26));
+  if (moon >= 0) {
+    pts = pts.map((_, i) => (moonChoice === 'sub' ? (i === moon ? -26 : 0) : (i === moon ? 0 : 26)));
+  }
   let jdBy = -1;
   if (jd) {
     jdBy = taken.findIndex((cards) => cards.includes('JD'));
     if (jdBy >= 0) pts[jdBy] -= 10;
   }
   return { pts, moon, jdBy };
+}
+
+// New totals for each moon choice, so the shooter can see what they're picking.
+export function moonOutcomes(totals, taken, cfg = {}) {
+  const out = {};
+  for (const choice of ['add', 'sub']) {
+    const { pts } = scoreHand(taken, { ...cfg, moonChoice: choice });
+    out[choice] = totals.map((t, i) => t + pts[i]);
+  }
+  return out;
+}
+
+// Computer's pick: never hand someone else the win; otherwise add 26 when leading
+// (ends the game sooner) and take 26 off when behind (keeps the game going).
+export function aiMoonChoice(outcomes, me, target) {
+  const wins = (tot) => winners(tot).includes(me);
+  const add = outcomes.add, sub = outcomes.sub;
+  if (gameOver(add, target) && wins(add)) return 'add';
+  if (gameOver(sub, target) && wins(sub)) return 'sub';
+  if (gameOver(add, target)) return 'sub';
+  if (gameOver(sub, target)) return 'add';
+  return wins(add) ? 'add' : 'sub';
 }
 
 export const gameOver = (totals, target) => Math.max(...totals) >= target;
