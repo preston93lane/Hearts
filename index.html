@@ -52,6 +52,15 @@ h1 span{color:var(--rose)}
 .tbtns button{padding:6px 10px}
 .row .kick{background:transparent;color:#fda4af;padding:4px 8px;font-size:16px}
 .moonbtns button{display:block;width:100%;margin:8px 0}
+/* Aaron shot the moon. Boo. (Just for show, scoring is unchanged.) */
+.boo{position:fixed;inset:0;z-index:200;pointer-events:none;overflow:hidden}
+.boo-txt{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translateX(-50%);text-align:center;font-size:64px;font-weight:900;color:#ef4444;
+  text-shadow:0 4px 0 #7f1d1d,0 0 24px #000;animation:booshake .25s infinite alternate,boofade 4.5s forwards;white-space:nowrap}
+.boo-txt small{display:block;font-size:20px;color:#fff;text-shadow:0 2px 6px #000}
+.boo .bf{position:absolute;bottom:-60px;font-size:38px;animation:boorise 3.6s ease-in forwards}
+@keyframes booshake{from{rotate:-4deg}to{rotate:4deg}}
+@keyframes boofade{0%,80%{opacity:1}100%{opacity:0}}
+@keyframes boorise{to{transform:translateY(-115svh) rotate(360deg);opacity:.2}}
 #table{position:relative;flex:1;min-height:250px}
 .opp{position:absolute;background:#0006;border:2px solid transparent;border-radius:12px;padding:5px 9px;min-width:84px;text-align:center;font-size:13px;line-height:1.3;transition:border-color .2s}
 .opp .nm{font-weight:700;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -685,6 +694,25 @@ $('ov').onclick=e=>{
 };
 window.addEventListener('resize',()=>render());
 
+/* ---------- the Aaron clause ---------- */
+// If anyone named Aaron shoots the moon, every screen boos him. Purely cosmetic.
+const isAaron=n=>/^aaron(\s|$)/i.test(String(n||'').trim());
+let BOOED='';
+function maybeBoo(){
+  const p=S.phase==='moon'?S.moonBy:(S.result?S.result.moon:-1);
+  if(p==null||p<0||!isAaron(S.players[p].name))return;
+  const key=S.gameId+'-'+S.handNo;
+  if(BOOED===key)return;
+  BOOED=key;
+  const d=document.createElement('div');d.className='boo';
+  const junk=['👎','🍅','👎','😤','🍅','👎','🥚','🙄'];
+  d.innerHTML=`<div class="boo-txt">BOOOOO!<small>${p===MY?'Booooo, Aaron':esc(S.players[p].name)+' shot the moon 👎'}</small></div>`+
+    [...Array(26)].map((_,i)=>`<span class="bf" style="left:${Math.random()*92}%;animation-delay:${(Math.random()*1.8).toFixed(2)}s">${junk[i%junk.length]}</span>`).join('');
+  document.body.appendChild(d);
+  if(navigator.vibrate)try{navigator.vibrate([80,60,80,60,200])}catch{}
+  setTimeout(()=>d.remove(),5600);
+}
+
 /* ---------- rendering ---------- */
 let TRICK_KEY='';
 function render(){
@@ -735,6 +763,7 @@ function render(){
   renderMsg(seated,nm);
   renderActs(seated);
   renderOverlay();
+  maybeBoo();
 }
 
 function renderHand(seated){
@@ -821,11 +850,11 @@ function renderOverlay(){
       `<tr class="${i===p?'w':''}"><td class="n">${esc(pl.name)}</td><td>${S.totals[i]}</td><td>${o.add[i]}</td><td>${o.sub[i]}</td></tr>`).join('')}</table>`;
     if(p===MY){
       const sent=SENT===S.seq;
-      html=`<div class="big">🌙</div><h2>You shot the moon!</h2><p>Pick one:</p>
+      html=`<div class="big">🌙</div><h2>You shot the moon!${isAaron(S.players[p].name)?' Boo.':''}</h2><p>Pick one:</p>
         <div class="moonbtns"><button id="moonAdd" ${sent?'disabled':''}>Everyone else +26</button>
         <button id="moonSub" ${sent?'disabled':''}>Take 26 off my score</button></div>${table}`;
     }else{
-      html=`<div class="big">🌙</div><h2>${who} shot the moon!</h2><p class="note">Waiting for ${who} to choose: everyone else +26, or 26 off their own score.</p>${table}`;
+      html=`<div class="big">🌙${isAaron(S.players[p].name)?'👎':''}</div><h2>${who} shot the moon!${isAaron(S.players[p].name)?' Booooo!':''}</h2><p class="note">Waiting for ${who} to choose: everyone else +26, or 26 off their own score.</p>${table}`;
     }
   }else if(S.phase==='handover'){
     const low=Math.min(...S.totals);
