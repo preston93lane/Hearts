@@ -12,8 +12,11 @@ export const su = (c) => c[1];
 export const isRed = (c) => su(c) === 'H' || su(c) === 'D';
 export const label = (c) => (c[0] === 'T' ? '10' : c[0]) + SUIT_SYMBOL[su(c)];
 
-// Cards taken out so the deck deals evenly. 2♣ always stays in, so it always leads.
-export const REMOVED = { 3: ['2D'], 4: [], 5: ['2D', '2S'] };
+// Cards taken out so the deck deals evenly.
+export const REMOVED = { 3: ['2C'], 4: [], 5: ['2C', '2D'] };
+
+// The lowest club in the deck leads the first trick: 2♣ with 4 players, 3♣ with 3 or 5.
+export const leadCard = (n) => (REMOVED[n].includes('2C') ? '3C' : '2C');
 
 export function buildDeck(n) {
   if (!REMOVED[n]) throw new Error(`Hearts needs 3, 4 or 5 players, not ${n}`);
@@ -54,10 +57,10 @@ export function passLabel(n, off) {
 export const isPointCard = (c) => su(c) === 'H' || c === 'QS';
 export const trickPoints = (cards) => cards.filter((c) => su(c) === 'H').length + (cards.includes('QS') ? 13 : 0);
 
-// ctx: { trick: [{p, c}], firstTrick: bool, heartsBroken: bool }
-export function legalPlays(hand, { trick, firstTrick, heartsBroken }) {
+// ctx: { trick: [{p, c}], firstTrick: bool, heartsBroken: bool, lead: card that opens the hand }
+export function legalPlays(hand, { trick, firstTrick, heartsBroken, lead = '2C' }) {
   if (!trick.length) {
-    if (firstTrick && hand.includes('2C')) return ['2C'];
+    if (firstTrick && hand.includes(lead)) return [lead];
     if (heartsBroken) return [...hand];
     const nonHearts = hand.filter((c) => su(c) !== 'H');
     return nonHearts.length ? nonHearts : [...hand];

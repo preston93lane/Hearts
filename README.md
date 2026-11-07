@@ -19,11 +19,11 @@ Tap a card to pick it up, then tap it again to play it. If a phone reloads or go
 ### Rules used
 
 - Pass 3 cards each hand. 4 players: left, right, across, no pass. 3 players: left, right, no pass. 5 players: left, right, 2 left, 2 right, no pass.
-- 2♣ leads the first trick. You must follow suit. No hearts or Q♠ on the first trick unless you have nothing else. Hearts can't be led until one has been played.
+- The lowest club leads the first trick (2♣, or 3♣ with 3 or 5 players). You must follow suit. No hearts or Q♠ on the first trick unless you have nothing else. Hearts can't be led until one has been played.
 - Each heart is 1 point, Q♠ is 13. Take all of them (shoot the moon) and everyone else gets 26.
 - Jack of Diamonds option: whoever takes the J♦ gets −10.
 - The game ends when someone reaches the target. Lowest score wins, and a tie means everyone tied wins.
-- **3 players:** 2♦ removed, 17 cards each. **5 players:** 2♦ and 2♠ removed, 10 cards each.
+- **3 players:** 2♣ removed, 17 cards each. **5 players:** 2♣ and 2♦ removed, 10 cards each.
 
 ## Google Sheet (one-time setup)
 

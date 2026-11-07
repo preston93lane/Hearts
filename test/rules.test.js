@@ -1,20 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildDeck, deal, passOffset, passLabel, legalPlays, trickWinner, scoreHand,
+  buildDeck, deal, leadCard, passOffset, passLabel, legalPlays, trickWinner, scoreHand,
   aiPass, aiPlay, trickPoints, winners, gameOver,
 } from '../rules.js';
 
 test('deck sizes deal evenly for 3, 4 and 5 players', () => {
   assert.equal(buildDeck(3).length, 51);
-  assert.ok(!buildDeck(3).includes('2D'));
+  assert.ok(!buildDeck(3).includes('2C') && buildDeck(3).includes('2D'));
   assert.equal(buildDeck(4).length, 52);
   assert.equal(buildDeck(5).length, 50);
-  assert.ok(!buildDeck(5).includes('2D') && !buildDeck(5).includes('2S'));
+  assert.ok(!buildDeck(5).includes('2C') && !buildDeck(5).includes('2D') && buildDeck(5).includes('2S'));
+  assert.deepEqual([3, 4, 5].map(leadCard), ['3C', '2C', '3C']);
   for (const n of [3, 4, 5]) {
     const hands = deal(n);
     assert.equal(new Set(hands.map((h) => h.length)).size, 1);
-    assert.ok(hands.flat().includes('2C') && hands.flat().includes('QS'));
+    assert.ok(hands.flat().includes(leadCard(n)) && hands.flat().includes('QS'));
   }
 });
 
@@ -29,6 +30,7 @@ test('passing cycles', () => {
 test('legal plays', () => {
   const t = (cs) => cs.map((c, p) => ({ p, c }));
   assert.deepEqual(legalPlays(['2C', '5H', 'QS'], { trick: [], firstTrick: true }), ['2C']);
+  assert.deepEqual(legalPlays(['3C', '9C', '5H'], { trick: [], firstTrick: true, lead: '3C' }), ['3C']);
   // first trick, void in clubs: no hearts or Q♠
   assert.deepEqual(legalPlays(['5H', 'QS', '3D'], { trick: t(['2C']), firstTrick: true }), ['3D']);
   // ...unless that is all you have
@@ -72,20 +74,20 @@ test('computer players only make legal moves, every hand scores correctly', () =
         passes.forEach((cs) => assert.equal(new Set(cs).size, 3));
         hands = hands.map((h, p) => [...h.filter((c) => !passes[p].includes(c)), ...passes[(p - 1 + n) % n]]);
         const taken = hands.map(() => []);
-        let turn = hands.findIndex((h) => h.includes('2C'));
+        let turn = hands.findIndex((h) => h.includes(leadCard(n)));
         let heartsBroken = false;
         for (let trickNo = 0; hands[0].length; trickNo++) {
           const trick = [];
           for (let k = 0; k < n; k++) {
             const p = (turn + k) % n;
-            const ctx = { trick, firstTrick: trickNo === 0, heartsBroken, n };
+            const ctx = { trick, firstTrick: trickNo === 0, heartsBroken, n, lead: leadCard(n) };
             const c = aiPlay(hands[p], ctx, { jd });
             assert.ok(legalPlays(hands[p], ctx).includes(c), `illegal ${c}`);
             hands[p] = hands[p].filter((x) => x !== c);
             trick.push({ p, c });
             if (c[1] === 'H') heartsBroken = true;
           }
-          if (trickNo === 0) assert.equal(trick[0].c, '2C');
+          if (trickNo === 0) assert.equal(trick[0].c, leadCard(n));
           turn = trickWinner(trick);
           taken[turn].push(...trick.map((t) => t.c));
         }

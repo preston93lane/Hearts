@@ -199,14 +199,14 @@ h1 span{color:var(--rose)}
       <p>Lowest score wins. The game ends when anyone reaches the target score (50, 100 or 150).</p>
       <h4>Each hand</h4>
       <p>Pick 3 cards to pass. With 4 players: left, right, across, no pass. With 3: left, right, no pass. With 5: left, right, 2 left, 2 right, no pass.</p>
-      <p>Whoever has the 2♣ leads it. Follow suit if you can; if you can't, play anything. The highest card of the suit led takes the trick and leads next.</p>
+      <p>Whoever has the lowest club leads it (2♣, or 3♣ with 3 or 5 players). Follow suit if you can; if you can't, play anything. The highest card of the suit led takes the trick and leads next.</p>
       <p>No hearts or Q♠ on the first trick (unless you have nothing else). You can't lead hearts until a heart has been played.</p>
       <h4>Points</h4>
       <p>Each ♥ = 1 point. Q♠ = 13 points.</p>
       <p><b>Shoot the moon:</b> take every heart and the Q♠ and everyone else gets 26.</p>
       <p><b>Jack of ♦ (optional):</b> whoever takes it gets −10.</p>
       <h4>3 and 5 players</h4>
-      <p>3 players: the 2♦ is removed (17 cards each). 5 players: the 2♦ and 2♠ are removed (10 cards each).</p>
+      <p>3 players: the 2♣ is removed (17 cards each). 5 players: the 2♣ and 2♦ are removed (10 cards each). The 3♣ leads instead of the 2♣.</p>
       <h4>Playing a card</h4>
       <p>Tap a card to pick it up, tap it again to play it.</p>
     </div>
@@ -379,7 +379,7 @@ function lobbyUI(){
   });
   seg('optN',CFG.n);seg('optT',CFG.target);seg('optJ',CFG.jd?1:0);
   $('gmTitle').textContent=IS_HOST?'Game master settings':'Game settings (set by the host)';
-  $('deckNote').textContent={3:'3 players: 2♦ removed, 17 cards each',4:'4 players: full deck, 13 cards each',5:'5 players: 2♦ and 2♠ removed, 10 cards each'}[n];
+  $('deckNote').textContent={3:'3 players: 2♣ removed, 17 cards each, 3♣ leads',4:'4 players: full deck, 13 cards each',5:'5 players: 2♣ and 2♦ removed, 10 cards each, 3♣ leads'}[n];
   $('start').hidden=!IS_HOST;
   const humans=SEATS.slice(0,n).filter(Boolean).length;
   $('lmsg').textContent=IS_HOST?`${humans} of ${n} seats taken. Empty seats will be played by the computer.`:'Waiting for the host to start the game…';
@@ -493,7 +493,7 @@ function dealHand(e){
     e.players.forEach((p,i)=>{if(!p.human)e.passes[i]=R.aiPass(e.hands[i],e.cfg)});
   }else startPlay(e);
 }
-function startPlay(e){e.phase='play';e.turn=e.hands.findIndex(h=>h.includes('2C'))}
+function startPlay(e){e.phase='play';e.turn=e.hands.findIndex(h=>h.includes(R.leadCard(e.n)))}
 
 async function passing(e){
   const need=e.players.map((p,i)=>i).filter(i=>e.players[i].human&&!e.passes[i]);
@@ -523,7 +523,7 @@ async function playStep(e){
     return;
   }
   const p=e.turn,pl=e.players[p];
-  const ctx={trick:e.trick,firstTrick:e.trickNo===0,heartsBroken:e.heartsBroken,n:e.n};
+  const ctx={trick:e.trick,firstTrick:e.trickNo===0,heartsBroken:e.heartsBroken,n:e.n,lead:R.leadCard(e.n)};
   const legal=R.legalPlays(e.hands[p],ctx);
   await pub(e);
   let c;
@@ -566,7 +566,7 @@ function send(a){
 const iPassed=()=>!!(PV.passed||(S&&PASS_SENT===S.gameId+S.handNo));
 function myLegal(){
   if(!S||S.phase!=='play'||S.turn!==MY||!PV.hand)return [];
-  return R.legalPlays(PV.hand,{trick:S.trick,firstTrick:S.trickNo===0,heartsBroken:S.heartsBroken});
+  return R.legalPlays(PV.hand,{trick:S.trick,firstTrick:S.trickNo===0,heartsBroken:S.heartsBroken,lead:R.leadCard(S.n)});
 }
 $('hand').onclick=e=>{
   const el=e.target.closest('[data-c]');if(!el||!S)return;
@@ -584,7 +584,7 @@ $('hand').onclick=e=>{
 };
 function illegalWhy(c){
   const led=S.trick.length?R.su(S.trick[0].c):null;
-  if(S.trickNo===0&&!S.trick.length)return 'The 2♣ has to lead the first trick';
+  if(S.trickNo===0&&!S.trick.length)return `The ${R.label(R.leadCard(S.n))} has to lead the first trick`;
   if(led&&PV.hand.some(x=>R.su(x)===led))return `You have to follow suit (${R.SUIT_SYMBOL[led]})`;
   if(S.trickNo===0)return 'No points on the first trick';
   if(!led&&R.su(c)==='H')return "Hearts haven't been broken yet";
@@ -691,7 +691,7 @@ function renderMsg(seated,nm){
       m=`<b>${nm(S.trickWinner)}</b> ${S.trickWinner===MY?'take':'takes'} the trick${pts?` (+${pts})`:''}${S.cfg.jd&&S.trick.some(t=>t.c==='JD')?' with the J♦ (−10)':''}`;
     }else if(S.turn===MY&&seated){
       if(SENT===S.seq)m='…';
-      else if(S.trickNo===0&&!S.trick.length)m='<b>Your turn.</b> Lead the 2♣';
+      else if(S.trickNo===0&&!S.trick.length)m=`<b>Your turn.</b> Lead the ${R.label(R.leadCard(S.n))}`;
       else m=SEL.length?'<b>Tap again to play it</b>':'<b>Your turn</b>';
       const recv=S.trickNo===0&&PV.recv?PV.recv:null;
       if(recv&&!S.trick.length&&S.trickNo===0)m+=`<br><span class="dim">You were passed ${recv.map(R.label).join(' ')}</span>`;
